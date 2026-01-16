@@ -1,0 +1,271 @@
+---
+# Economic Policy Engine - API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: economic-engine-api
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: economic-engine
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: economic-engine
+        app.kubernetes.io/component: api
+        app.kubernetes.io/version: "2.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: economic-engine-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: api
+        image: economic-engine:2.0.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: economic-engine-config
+        - secretRef:
+            name: economic-engine-secrets
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: audit-logs
+          mountPath: /var/log/economic-engine/audit
+        - name: tls-certs
+          mountPath: /etc/tls
+          readOnly: true
+        - name: encryption-keys
+          mountPath: /etc/encryption
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: audit-logs
+        persistentVolumeClaim:
+          claimName: audit-logs-pvc
+      - name: tls-certs
+        secret:
+          secretName: economic-engine-tls
+      - name: encryption-keys
+        secret:
+          secretName: economic-engine-encryption-keys
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: economic-engine
+                  app.kubernetes.io/component: api
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: economic-engine
+---
+# Celery Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: economic-engine-worker
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: economic-engine
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: economic-engine
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: economic-engine-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: worker
+        image: economic-engine:2.0.0
+        command: ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info"]
+        envFrom:
+        - configMapRef:
+            name: economic-engine-config
+        - secretRef:
+            name: economic-engine-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: data-pvc
+---
+# Data Ingestion Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: economic-engine-ingestion
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: ingestion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: economic-engine
+      app.kubernetes.io/component: ingestion
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: economic-engine
+        app.kubernetes.io/component: ingestion
+    spec:
+      serviceAccountName: economic-engine-sa
+      containers:
+      - name: ingestion
+        image: economic-engine:2.0.0
+        command: ["python", "-m", "src.data_lake.ingestion.economic_data"]
+        envFrom:
+        - configMapRef:
+            name: economic-engine-config
+        - configMapRef:
+            name: economic-engine-config-prc
+        - configMapRef:
+            name: economic-engine-config-russia
+        - secretRef:
+            name: economic-engine-secrets
+        - secretRef:
+            name: economic-engine-api-keys
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+---
+# ML Training Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: economic-engine-ml
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: ml-training
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: economic-engine
+      app.kubernetes.io/component: ml-training
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: economic-engine
+        app.kubernetes.io/component: ml-training
+    spec:
+      serviceAccountName: economic-engine-sa
+      containers:
+      - name: ml-training
+        image: economic-engine:2.0.0
+        command: ["python", "-m", "src.models.training.scheduler"]
+        envFrom:
+        - configMapRef:
+            name: economic-engine-config
+        - secretRef:
+            name: economic-engine-secrets
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "16Gi"
+            cpu: "8000m"
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: models
+          mountPath: /app/models
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: models-pvc
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"

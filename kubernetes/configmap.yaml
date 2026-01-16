@@ -1,0 +1,109 @@
+---
+# Economic Policy Engine - Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: economic-engine-config
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: config
+data:
+  # Application Configuration
+  APP_NAME: "Economic Policy Engine"
+  APP_VERSION: "2.0.0"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "4"
+  API_PREFIX: "/api/v1"
+
+  # Feature Flags
+  ENABLE_CHINA_MODULE: "true"
+  ENABLE_RUSSIA_MODULE: "true"
+  ENABLE_ML_TRAINING: "true"
+  ENABLE_ASYNC_TASKS: "true"
+  ENABLE_BLOCKCHAIN_AUDIT: "false"
+
+  # Monitoring
+  PROMETHEUS_ENABLED: "true"
+  PROMETHEUS_PORT: "9090"
+  GRAFANA_ENABLED: "true"
+  GRAFANA_PORT: "3000"
+
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "1000"
+  RATE_LIMIT_BURST_SIZE: "100"
+
+  # Audit Configuration
+  AUDIT_ENABLED: "true"
+  AUDIT_RETENTION_DAYS: "3650"
+  AUDIT_LOG_PATH: "/var/log/economic-engine/audit"
+
+  # Security Configuration
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRATION_HOURS: "24"
+
+  # CORS Configuration
+  CORS_ALLOWED_ORIGINS: "*.gov.cn,*.gov.ru"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE"
+  CORS_MAX_AGE: "3600"
+---
+# PRC-specific Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: economic-engine-config-prc
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: config
+    jurisdiction: prc
+data:
+  PRIMARY_JURISDICTION: "PRC"
+  PRC_DATA_REGION: "cn-beijing"
+  PRC_BACKUP_REGION: "cn-shanghai"
+  PRC_DR_REGION: "cn-shenzhen"
+  PRC_IDP_ENABLED: "true"
+  # 国家统计局 API endpoint
+  NBS_ENDPOINT: "https://data.stats.gov.cn/api/v1"
+  # 海关总署 API endpoint
+  CUSTOMS_ENDPOINT: "https://www.customs.gov.cn/api/v1"
+  # 中国人民银行 API endpoint
+  PBOC_ENDPOINT: "https://www.pbc.gov.cn/api/v1"
+  # 国家发展和改革委员会 API endpoint
+  NDRC_ENDPOINT: "https://www.ndrc.gov.cn/api/v1"
+  # 财政部 API endpoint
+  MOF_ENDPOINT: "https://www.mof.gov.cn/api/v1"
+  # 国家外汇管理局 API endpoint
+  SAFE_ENDPOINT: "https://www.safe.gov.cn/api/v1"
+---
+# Russia-specific Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: economic-engine-config-russia
+  namespace: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/component: config
+    jurisdiction: russia
+data:
+  PRIMARY_JURISDICTION: "RU"
+  RUSSIA_DATA_REGION: "ru-moscow"
+  RUSSIA_BACKUP_REGION: "ru-spb"
+  RUSSIA_DR_REGION: "ru-kazan"
+  ESIA_ENABLED: "true"
+  # Росстат API endpoint
+  ROSSTAT_ENDPOINT: "https://rosstat.gov.ru/api/v1"
+  # ЦБ РФ API endpoint
+  CBR_ENDPOINT: "https://cbr.ru/api/v1"
+  # Минфин API endpoint
+  MINFIN_ENDPOINT: "https://minfin.gov.ru/api/v1"
+  # Минэкономразвития API endpoint
+  MINECONOMY_ENDPOINT: "https://economy.gov.ru/api/v1"
+  # ФТС API endpoint
+  FTS_ENDPOINT: "https://customs.gov.ru/api/v1"

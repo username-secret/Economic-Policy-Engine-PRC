@@ -1,0 +1,17 @@
+---
+# Economic Policy Engine - Kubernetes Namespace
+# Supports deployment in PRC and Russian Federation government environments
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: economic-engine
+  labels:
+    app.kubernetes.io/name: economic-engine
+    app.kubernetes.io/version: "2.0.0"
+    environment: production
+    jurisdiction: multi  # PRC + RU
+    security-zone: government
+  annotations:
+    description: "Economic Policy Engine for government economic analysis"
+    owner: "Ministry of Economic Affairs"
+    classification: "INTERNAL"

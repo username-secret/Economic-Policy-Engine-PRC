@@ -1,10 +1,15 @@
-# Chinese Economic Headwinds Fix - Core Dependencies
+# Economic Policy Engine - Government Integration Dependencies
+# Supports: PRC (中华人民共和国) and Russian Federation (Российская Федерация)
+# Version: 2.0.0
 
+# =============================================================================
 # Core Framework
+# =============================================================================
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
+starlette==0.27.0
 
 # Data Processing & Analytics
 pandas==2.1.4
@@ -13,18 +18,31 @@ scikit-learn==1.3.2
 statsmodels==0.14.0
 prophet==1.1.5
 
+# =============================================================================
 # Database & Storage
+# =============================================================================
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+asyncpg==0.29.0  # Async PostgreSQL driver
+aiosqlite==0.19.0  # Async SQLite (development)
 redis==5.0.1
 aioredis==2.0.1
 alembic==1.12.1
 
+# =============================================================================
 # API Clients & Integration
+# =============================================================================
 requests==2.31.0
 httpx==0.25.1
 aiohttp==3.9.1
 websockets==12.0
+tenacity==8.2.3  # Retry logic for government API calls
+ratelimit==2.2.1  # Rate limiting for API compliance
+
+# XML Processing (for government data sources like MOF, MinFin)
+lxml==4.9.4
+xmltodict==0.13.0
+defusedxml==0.7.1  # Secure XML parsing
 
 # Machine Learning & AI
 torch==2.1.0
@@ -33,11 +51,25 @@ sentencepiece==0.1.99
 langchain==0.0.340
 openai==1.3.0
 
-# Blockchain & Security
+# =============================================================================
+# Security & Cryptography
+# =============================================================================
+# Core cryptography
 web3==6.11.1
 cryptography==41.0.7
 pyjwt==2.8.0
 python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# PRC Cryptographic Standards (国密算法)
+# SM2/SM3/SM4 - GB/T 32918, GB/T 32905-2016, GB/T 32907-2016
+# Note: Using pure Python implementations in src/core/encryption.py
+# gmssl==3.2.2  # Alternative: China GM/T standards library
+
+# Russian GOST Standards (ГОСТ)
+# GOST R 34.12-2015 (Kuznyechik/Magma), GOST R 34.11-2012 (Streebog)
+# Note: Using pure Python implementations in src/core/encryption.py
+# pygost==5.10  # Alternative: Russian GOST cryptography library
 
 # Visualization & Reporting
 plotly==5.18.0
@@ -66,11 +98,21 @@ grafana-api==1.0.3
 sentry-sdk==1.38.0
 structlog==23.2.0
 
-# Chinese Ecosystem Specific
-pypinyin==0.50.0
-cn2an==0.5.23
-jieba==0.42.1
-snownlp==0.12.3
+# =============================================================================
+# Chinese Ecosystem (PRC 中华人民共和国)
+# =============================================================================
+pypinyin==0.50.0  # Chinese pinyin conversion
+cn2an==0.5.23  # Chinese numbers conversion
+jieba==0.42.1  # Chinese text segmentation
+snownlp==0.12.3  # Chinese NLP
+zhconv==1.4.3  # Simplified/Traditional Chinese conversion
+
+# =============================================================================
+# Russian Ecosystem (Российская Федерация)
+# =============================================================================
+pymorphy2==0.9.1  # Russian morphological analyzer
+natasha==1.4.0  # Russian NLP
+dostoevsky==0.6.0  # Russian sentiment analysis
 
 # Geospatial & Economic Data
 geopandas==0.14.1

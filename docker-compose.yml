@@ -1,34 +1,89 @@
 version: '3.8'
 
+# Economic Policy Engine - Government Deployment
+# Supports: PRC (中华人民共和国) and Russian Federation (Российская Федерация)
+
 services:
+  # ==========================================================================
+  # Core API Service
+  # ==========================================================================
   api:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/chinese_economic
-      - REDIS_URL=redis://redis:6379/0
+      # Core Configuration
+      - APP_NAME=Economic Policy Engine
+      - APP_VERSION=2.0.0
+      - ENVIRONMENT=development
       - LOG_LEVEL=INFO
+
+      # Database
+      - DATABASE_URL=postgresql://postgres:password@db:5432/economic_engine
+
+      # Cache
+      - REDIS_URL=redis://redis:6379/0
+
+      # Feature Flags
+      - ENABLE_CHINA_MODULE=true
+      - ENABLE_RUSSIA_MODULE=true
+      - ENABLE_ML_TRAINING=true
+      - ENABLE_ASYNC_TASKS=true
+
+      # Security (Use secrets in production!)
+      - JWT_SECRET=development-secret-change-in-production
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_HOURS=24
+
+      # Audit
+      - AUDIT_ENABLED=true
+      - AUDIT_LOG_PATH=/var/log/economic-engine/audit
+
+      # PRC Data Sources (国家统计局, 海关总署, etc.)
+      - NBS_ENDPOINT=https://data.stats.gov.cn/api/v1
+      - CUSTOMS_ENDPOINT=https://www.customs.gov.cn/api/v1
+      - PBOC_ENDPOINT=https://www.pbc.gov.cn/api/v1
+      - NDRC_ENDPOINT=https://www.ndrc.gov.cn/api/v1
+      - MOF_ENDPOINT=https://www.mof.gov.cn/api/v1
+      - SAFE_ENDPOINT=https://www.safe.gov.cn/api/v1
+
+      # Russia Data Sources (Росстат, ЦБ РФ, etc.)
+      - ROSSTAT_ENDPOINT=https://rosstat.gov.ru/api/v1
+      - CBR_ENDPOINT=https://cbr.ru/api/v1
+      - MINFIN_ENDPOINT=https://minfin.gov.ru/api/v1
+      - MINECONOMY_ENDPOINT=https://economy.gov.ru/api/v1
+      - FTS_ENDPOINT=https://customs.gov.ru/api/v1
+
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     volumes:
       - ./data:/app/data
+      - audit_logs:/var/log/economic-engine/audit
     networks:
       - economic-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
 
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=chinese_economic
+      - POSTGRES_DB=economic_engine
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
     volumes:
@@ -37,12 +92,16 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d economic_engine"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - economic-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   redis:
     image: redis:7-alpine
@@ -59,12 +118,23 @@ services:
     networks:
       - economic-network
 
+  # ==========================================================================
+  # Data Ingestion Service (PRC + Russia)
+  # ==========================================================================
   data-ingestor:
     build: .
     command: python -m src.data_lake.ingestion.economic_data
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/chinese_economic
+      - DATABASE_URL=postgresql://postgres:password@db:5432/economic_engine
       - LOG_LEVEL=INFO
+      - ENABLE_CHINA_MODULE=true
+      - ENABLE_RUSSIA_MODULE=true
+      # PRC Sources
+      - NBS_ENDPOINT=https://data.stats.gov.cn/api/v1
+      - CUSTOMS_ENDPOINT=https://www.customs.gov.cn/api/v1
+      # Russia Sources
+      - ROSSTAT_ENDPOINT=https://rosstat.gov.ru/api/v1
+      - CBR_ENDPOINT=https://cbr.ru/api/v1
     depends_on:
       db:
         condition: service_healthy
@@ -72,6 +142,7 @@ services:
       - ./data:/app/data
     networks:
       - economic-network
+    restart: unless-stopped
 
   ml-training:
     build: .
@@ -83,21 +154,32 @@ services:
     networks:
       - economic-network
 
+  # ==========================================================================
+  # Celery Worker (Async Task Processing)
+  # ==========================================================================
   celery-worker:
     build: .
     command: celery -A src.tasks.celery_app worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/chinese_economic
+      - DATABASE_URL=postgresql://postgres:password@db:5432/economic_engine
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENABLE_CHINA_MODULE=true
+      - ENABLE_RUSSIA_MODULE=true
     depends_on:
       - redis
       - db
     volumes:
       - ./data:/app/data
+      - models_data:/app/models
     networks:
       - economic-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
 
   flower:
     build: .
@@ -150,6 +232,8 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  audit_logs:
+  models_data:
 
 networks:
   economic-network:
